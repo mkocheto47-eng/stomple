@@ -6,13 +6,12 @@
   "scripts": {
     "dev": "vite",
     "dev:party": "wrangler dev --port 1999",
-    "build": "node scripts/tracks.mjs && tsc --noEmit && vite build",
+    "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "deploy:party": "wrangler deploy",
     "test": "vitest run",
     "test:watch": "vitest",
-    "deploy:web": "npm run build && wrangler pages deploy dist --project-name stomple",
-    "tracks": "node scripts/tracks.mjs"
+    "deploy:web": "npm run build && wrangler pages deploy dist --project-name stomple"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260820.1",

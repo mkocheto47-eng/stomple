@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { getAudioCtx } from './audioCtx';
 
 type Opts = { type?: OscillatorType; vol?: number; when?: number; fe?: number | null; attack?: number; dest?: AudioNode | null };
 export type Sfx = 'tap' | 'plop' | 'chain' | 'turn' | 'elim' | 'fanfare' | 'error';
@@ -19,9 +20,10 @@ export function useAudio(sfxOn: boolean, musicOn: boolean, duck = false) {
   const ctx = () => {
     const r = ref.current;
     if (!r.ac) {
-      try { r.ac = new (window.AudioContext || (window as any).webkitAudioContext)(); r.master = r.ac.createGain(); r.master.gain.value = .9; r.master.connect(r.ac.destination); } catch { return null; }
+      const ac = getAudioCtx(); if (!ac) return null;
+      r.ac = ac; r.master = ac.createGain(); r.master.gain.value = .9; r.master.connect(ac.destination);
     }
-    if (r.ac!.state === 'suspended') r.ac!.resume();
+    if (r.ac.state === 'suspended') r.ac.resume().catch(() => {});
     return r.ac;
   };
   const note = (f: number, dur: number, { type = 'sine', vol = .12, when = 0, fe = null, attack = .01, dest = null }: Opts = {}) => {

@@ -7,7 +7,6 @@ import { getPref, setPref } from './storage';
 import Hotseat from './Hotseat';
 import Online from './Online';
 import Rules from './Rules';
-import { TRACKS } from './Player';
 
 type Route = { page: 'home' } | { page: 'hotseat' } | { page: 'room'; code: string };
 
@@ -26,7 +25,7 @@ export default function App() {
   const [music, setMusic] = useState(() => getPref('music', true));
   const [voiceOn, setVoiceOn] = useState(false);
   const [rules, setRules] = useState(false);
-  const sfx = useAudio(sound, music && TRACKS.length === 0, voiceOn);
+  const sfx = useAudio(sound, music, voiceOn);
   useEffect(() => { const f = () => setRoute(parseHash()); addEventListener('hashchange', f); return () => removeEventListener('hashchange', f); }, []);
   useEffect(() => setPref('sound', sound), [sound]);
   useEffect(() => setPref('music', music), [music]);
@@ -39,8 +38,8 @@ export default function App() {
 
   return <Shell>
     {route.page === 'home' && <Home toggles={toggles} onRules={() => setRules(true)} />}
-    {route.page === 'hotseat' && <Hotseat sfx={sfx} onHome={() => go('')} headerRight={toggles} music={music} voiceOn={voiceOn} />}
-    {route.page === 'room' && <Online key={route.code} code={route.code} sfx={sfx} onHome={() => { setVoiceOn(false); go(''); }} headerRight={toggles} onVoice={setVoiceOn} music={music} />}
+    {route.page === 'hotseat' && <Hotseat sfx={sfx} onHome={() => go('')} headerRight={toggles} />}
+    {route.page === 'room' && <Online key={route.code} code={route.code} sfx={sfx} onHome={() => { setVoiceOn(false); go(''); }} headerRight={toggles} onVoice={setVoiceOn} />}
     {rules && <Rules onClose={() => setRules(false)} />}
   </Shell>;
 }

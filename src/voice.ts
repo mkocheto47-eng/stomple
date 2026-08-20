@@ -21,7 +21,9 @@ if (import.meta.env.VITE_TURN_URL) {
 }
 
 export interface VoicePeer { id: string; speaking: boolean; connected: boolean }
-type Analyser = { ctx: AudioContext; an: AnalyserNode; buf: Uint8Array<ArrayBuffer> };
+type Analyser = { src: MediaStreamAudioSourceNode; an: AnalyserNode; buf: Uint8Array<ArrayBuffer> };
+
+import { getAudioCtx as getCtx } from './audioCtx';
 
 export function useVoice(opts: {
   me: string;
@@ -47,20 +49,21 @@ export function useVoice(opts: {
   const offerRef = useRef<(id: string) => void>(() => {});
   const setPeer = (id: string, patch: Partial<VoicePeer>) => setPeers(p => { const base: VoicePeer = p[id] ?? { id, speaking: false, connected: false }; return { ...p, [id]: { ...base, ...patch } }; });
 
+  const detachAnalyser = (id: string) => { const a = analysers.current.get(id); if (a) { try { a.src.disconnect(); a.an.disconnect(); } catch {} analysers.current.delete(id); } };
   const attachAnalyser = (id: string, s: MediaStream) => {
     try {
-      analysers.current.get(id)?.ctx.close().catch(() => {});
-      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      detachAnalyser(id);
+      const ctx = getCtx(); if (!ctx) return;
       const src = ctx.createMediaStreamSource(s);
       const an = ctx.createAnalyser(); an.fftSize = 512; src.connect(an);
-      analysers.current.set(id, { ctx, an, buf: new Uint8Array(new ArrayBuffer(an.frequencyBinCount)) });
+      analysers.current.set(id, { src, an, buf: new Uint8Array(new ArrayBuffer(an.frequencyBinCount)) });
     } catch { /* без индикации речи */ }
   };
 
   const closePeer = useCallback((id: string) => {
     pcs.current.get(id)?.close(); pcs.current.delete(id); senders.current.delete(id); pendingIce.current.delete(id);
     const a = audios.current.get(id); if (a) { a.srcObject = null; a.remove(); audios.current.delete(id); }
-    const an = analysers.current.get(id); if (an) { an.ctx.close().catch(() => {}); analysers.current.delete(id); }
+    detachAnalyser(id);
     setPeers(p => { const n = { ...p }; delete n[id]; return n; });
   }, []);
 
@@ -174,7 +177,7 @@ export function useVoice(opts: {
   const micOff = useCallback(() => {
     for (const sender of senders.current.values()) sender.replaceTrack(null).catch(() => {});
     stream.current?.getTracks().forEach(t => t.stop()); stream.current = null;
-    const mine = analysers.current.get('__me'); if (mine) { mine.ctx.close().catch(() => {}); analysers.current.delete('__me'); }
+    detachAnalyser('__me');
     setMic(false); setMySpeaking(false);
     send({ t: 'voice', on: false });
   }, [send]);

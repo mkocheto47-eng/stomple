@@ -1,14 +1,10 @@
 import { useState } from 'react';
 import { newGame, startRound, defaultTargetScore, type GameState, type PlayerColor, applyMove } from '../shared/engine';
 import GameScreen from './GameScreen';
-import Player, { TRACKS } from './Player';
-import type { MusicState } from '../shared/protocol';
 import { COLORS, UNB, RUB, card, ballBg, Logo, btnPrimary, btnSoft } from './theme';
 import type { Sfx } from './audio';
 
-export default function Hotseat({ sfx, onHome, headerRight, music, voiceOn }: { sfx: (k: Sfx) => void; onHome: () => void; headerRight: React.ReactNode; music: boolean; voiceOn: boolean }) {
-  const [ms, setMs] = useState<MusicState | null>(null);
-  const player = TRACKS.length ? <Player state={ms} canControl onChange={s => setMs({ ...s, at: Date.now() })} muted={!music} duck={voiceOn} /> : null;
+export default function Hotseat({ sfx, onHome, headerRight }: { sfx: (k: Sfx) => void; onHome: () => void; headerRight: React.ReactNode }) {
   const [numPlayers, setNumPlayers] = useState(2);
   const [names, setNames] = useState(['', '', '', '', '', '']);
   const [picks, setPicks] = useState<PlayerColor[]>([0, 3, 1, 4, 2, 5]);
@@ -20,7 +16,7 @@ export default function Hotseat({ sfx, onHome, headerRight, music, voiceOn }: { 
   };
 
   if (game) return <GameScreen
-    game={game} me={null} isHost sfx={sfx} headerRight={headerRight} player={player}
+    game={game} me={null} isHost sfx={sfx} headerRight={headerRight}
     onMove={m => setGame(g => applyMove(g!, m))}
     onNextRound={() => setGame(g => startRound(g!))}
     onAgain={() => setGame(g => newGame({ players: g!.players.map(p => ({ id: p.id, name: p.name, color: p.color })) }))}

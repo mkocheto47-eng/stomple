@@ -35,8 +35,6 @@ export interface GameScreenProps {
   externalToast?: { id: number; text: string } | null;
   /** Реакции и голос (только онлайн) */
   social?: Social;
-  /** Плеер (рендерится под шапкой) */
-  player?: React.ReactNode;
 }
 
 const moveKey = (g: GameState) => g.lastMove ? `${g.round}:${g.lastMove.playerId}:${g.lastMove.path.join(',')}` : `${g.round}:-`;
@@ -178,8 +176,6 @@ export default function GameScreen(p: GameScreenProps) {
           <div style={{ background: '#fff', borderRadius: 999, padding: '6px 12px', fontWeight: 900, fontSize: 13, color: '#7c7666', boxShadow: '0 2px 8px rgba(60,50,20,.08)', whiteSpace: 'nowrap' }}>Раунд {view.round} · до {view.targetScore}</div>
         </div>
       </div>
-
-      {p.player}
 
       {/* Игроки */}
       <div style={{ display: 'flex', gap: 6 }}>

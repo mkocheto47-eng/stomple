@@ -4,7 +4,6 @@ import type { ClientMsg, ServerMsg, RoomSnapshot } from '../shared/protocol';
 import { defaultTargetScore, type Move, type PlayerColor } from '../shared/engine';
 import GameScreen, { type ReactionEvent } from './GameScreen';
 import { useVoice } from './voice';
-import Player, { TRACKS } from './Player';
 import type { ReactionId } from '../shared/protocol';
 import { COLORS, UNB, RUB, card, ballBg, Logo, btnPrimary, btnSoft, btnDisabled, Toast } from './theme';
 import { playerId, getName, setName as saveName } from './storage';
@@ -12,7 +11,7 @@ import type { Sfx } from './audio';
 
 const HOST = import.meta.env.VITE_PARTY_HOST || 'localhost:1999';
 
-export default function Online({ code, sfx, onHome, headerRight, onVoice, music }: { code: string; sfx: (k: Sfx) => void; onHome: () => void; headerRight: React.ReactNode; onVoice?: (on: boolean) => void; music: boolean }) {
+export default function Online({ code, sfx, onHome, headerRight, onVoice }: { code: string; sfx: (k: Sfx) => void; onHome: () => void; headerRight: React.ReactNode; onVoice?: (on: boolean) => void }) {
   const me = useMemo(playerId, []);
   const [name, setNameState] = useState(getName());
   const [joined, setJoined] = useState(!!getName());
@@ -22,8 +21,6 @@ export default function Online({ code, sfx, onHome, headerRight, onVoice, music 
   const [toast, setToast] = useState<string | null>(null);
   const sock = useRef<PartySocket | null>(null);
   const [reactions, setReactions] = useState<ReactionEvent[]>([]);
-  const [serverOffset, setServerOffset] = useState(0);
-  const lastMusicAt = useRef(0);
   const rtcSubs = useRef(new Set<(from: string, data: any) => void>());
 
   useEffect(() => {
@@ -34,7 +31,7 @@ export default function Online({ code, sfx, onHome, headerRight, onVoice, music 
     s.addEventListener('close', () => setConn('closed'));
     s.addEventListener('message', e => {
       const m: ServerMsg = JSON.parse(e.data);
-      if (m.t === 'state') { setRoom(m.room); if (m.room.music && Math.abs(m.room.music.at - Date.now()) < 120000 && m.room.music.at > lastMusicAt.current) { lastMusicAt.current = m.room.music.at; setServerOffset(m.room.music.at - Date.now()); } }
+      if (m.t === 'state') setRoom(m.room);
       if (m.t === 'error') setErr({ id: Date.now(), text: m.message });
       if (m.t === 'toast') { setToast(m.message); setTimeout(() => setToast(null), 1800); }
       if (m.t === 'reaction') { const key = m.at + Math.random(); setReactions(r => [...r.slice(-20), { key, from: m.from, id: m.id }]); setTimeout(() => setReactions(r => r.filter(x => x.key !== key)), 2500); }
@@ -85,7 +82,6 @@ export default function Online({ code, sfx, onHome, headerRight, onVoice, music 
   );
 
   const presence = Object.fromEntries(room.members.map(m => [m.id, { online: m.online, left: m.left }]));
-  const player = TRACKS.length ? <Player state={room.music} canControl={isHost} onChange={s => send({ t: 'music', ...s })} muted={!music} duck={voice.mic} serverOffset={serverOffset} /> : null;
   const connBadge = conn !== 'open' && <div style={{ background: '#d94436', color: '#fff', borderRadius: 999, padding: '6px 10px', fontWeight: 800, fontSize: 12, animation: 'blink 1.2s infinite' }}>нет связи</div>;
 
   // ───── игра ─────
@@ -95,7 +91,6 @@ export default function Online({ code, sfx, onHome, headerRight, onVoice, music 
       <GameScreen
         game={room.game} me={inGame ? me : '__spectator__'} isHost={isHost} sfx={sfx} presence={presence} waitingSince={room.waitingSince}
         headerRight={<>{connBadge}{headerRight}</>}
-        player={player}
         externalToast={err}
         social={{
           reactions,
@@ -124,7 +119,6 @@ export default function Online({ code, sfx, onHome, headerRight, onVoice, music 
         <div style={{ display: 'flex', gap: 6 }}>{connBadge}{headerRight}</div>
       </div>
       <div style={{ textAlign: 'center' }}><Logo size={32} /></div>
-      {player}
 
       <div style={{ ...card, padding: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
         <div style={{ flex: 1 }}>
