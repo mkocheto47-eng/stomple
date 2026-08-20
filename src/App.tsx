@@ -6,6 +6,7 @@ import { useAudio } from './audio';
 import { getPref, setPref } from './storage';
 import Hotseat from './Hotseat';
 import Online from './Online';
+import Rules from './Rules';
 
 type Route = { page: 'home' } | { page: 'hotseat' } | { page: 'room'; code: string };
 
@@ -23,24 +24,27 @@ export default function App() {
   const [sound, setSound] = useState(() => getPref('sound', true));
   const [music, setMusic] = useState(() => getPref('music', true));
   const [voiceOn, setVoiceOn] = useState(false);
+  const [rules, setRules] = useState(false);
   const sfx = useAudio(sound, music, voiceOn);
   useEffect(() => { const f = () => setRoute(parseHash()); addEventListener('hashchange', f); return () => removeEventListener('hashchange', f); }, []);
   useEffect(() => setPref('sound', sound), [sound]);
   useEffect(() => setPref('music', music), [music]);
 
   const toggles = <>
+    <button onClick={() => setRules(true)} aria-label="Правила" style={{ border: 'none', background: '#fff', borderRadius: 999, width: 30, height: 30, cursor: 'pointer', boxShadow: '0 2px 8px rgba(60,50,20,.08)', fontFamily: UNB, fontWeight: 900, fontSize: 15, color: '#2b5ea7' }}>?</button>
     <button onClick={() => setMusic(m => !m)} aria-label="Музыка" style={{ border: 'none', background: '#fff', borderRadius: 999, width: 30, height: 30, cursor: 'pointer', boxShadow: '0 2px 8px rgba(60,50,20,.08)', opacity: music ? 1 : .4, fontSize: 14 }}>🎵</button>
     <button onClick={() => setSound(s => !s)} aria-label="Звуки" style={{ border: 'none', background: '#fff', borderRadius: 999, width: 30, height: 30, cursor: 'pointer', boxShadow: '0 2px 8px rgba(60,50,20,.08)', opacity: sound ? 1 : .4, fontSize: 14 }}>🔊</button>
   </>;
 
   return <Shell>
-    {route.page === 'home' && <Home toggles={toggles} />}
+    {route.page === 'home' && <Home toggles={toggles} onRules={() => setRules(true)} />}
     {route.page === 'hotseat' && <Hotseat sfx={sfx} onHome={() => go('')} headerRight={toggles} />}
     {route.page === 'room' && <Online key={route.code} code={route.code} sfx={sfx} onHome={() => { setVoiceOn(false); go(''); }} headerRight={toggles} onVoice={setVoiceOn} />}
+    {rules && <Rules onClose={() => setRules(false)} />}
   </Shell>;
 }
 
-function Home({ toggles }: { toggles: React.ReactNode }) {
+function Home({ toggles, onRules }: { toggles: React.ReactNode; onRules: () => void }) {
   const [code, setCode] = useState('');
   const ok = code.length === CODE_LENGTH;
   const join = () => { if (ok) go(`/r/${code}`); };
@@ -65,6 +69,7 @@ function Home({ toggles }: { toggles: React.ReactNode }) {
       </div>
 
       <button onClick={() => go('/hotseat')} style={btnSoft}>Играть на одном телефоне</button>
+      <button onClick={onRules} style={{ ...btnSoft, background: 'none', color: '#2b5ea7' }}>Как играть?</button>
 
       <div style={{ marginTop: 'auto', textAlign: 'center', fontSize: 12, color: '#b5ad99', fontWeight: 700, fontFamily: RUB }}>Поле 7×7 · 2–6 игроков · до 40 / 20 / 15 очков</div>
     </div>

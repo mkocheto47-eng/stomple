@@ -44,6 +44,7 @@ export function useVoice(opts: {
   const analysers = useRef<Map<string, Analyser>>(new Map());
   const pendingIce = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
 
+  const offerRef = useRef<(id: string) => void>(() => {});
   const setPeer = (id: string, patch: Partial<VoicePeer>) => setPeers(p => { const base: VoicePeer = p[id] ?? { id, speaking: false, connected: false }; return { ...p, [id]: { ...base, ...patch } }; });
 
   const attachAnalyser = (id: string, s: MediaStream) => {
@@ -88,19 +89,35 @@ export function useVoice(opts: {
       if (pc.connectionState === 'disconnected') setPeer(id, { connected: false });
       if (pc.connectionState === 'failed' || pc.connectionState === 'closed') closePeer(id);
     };
-    pc.onnegotiationneeded = async () => {
-      if (me > id) return; // инициирует меньший id
-      try { const offer = await pc.createOffer(); await pc.setLocalDescription(offer); send({ t: 'rtc', to: id, data: { sdp: pc.localDescription } }); } catch { /* повторится */ }
-    };
+    pc.onnegotiationneeded = () => { if (me < id) offerRef.current(id); };
     setPeer(id, {});
+    // Сообщаем собеседнику, что готовы: инициатор в ответ пришлёт (или повторит) offer.
+    send({ t: 'rtc', to: id, data: { ready: true } });
     return pc;
-  }, [me, send, closePeer]);
+  }, [me, send, closePeer]); // eslint-disable-line
+
+  /** Инициатор: создать и отправить offer (или повторить уже созданный). */
+  const offer = useCallback(async (id: string) => {
+    const pc = pcs.current.get(id); if (!pc) return;
+    try {
+      if (pc.signalingState === 'have-local-offer' && pc.localDescription) { send({ t: 'rtc', to: id, data: { sdp: pc.localDescription } }); return; }
+      if (pc.signalingState !== 'stable') return;
+      const o = await pc.createOffer(); await pc.setLocalDescription(o);
+      send({ t: 'rtc', to: id, data: { sdp: pc.localDescription } });
+    } catch { /* повторим по следующему ready */ }
+  }, [send]);
+  offerRef.current = offer;
 
   // Входящий сигналинг
   useEffect(() => opts.onRtc(async (from, data) => {
     if (!enabled) return;
     const pc = makePeer(from);
     try {
+      if (data.ready) {
+        // Собеседник готов. Инициатор шлёт offer; если соединение уже было и сломалось — пересоздаём.
+        if (me < from) { if (pc.connectionState === 'failed' || pc.connectionState === 'closed') { closePeer(from); makePeer(from); } else offer(from); }
+        return;
+      }
       if (data.sdp) {
         if (data.sdp.type === 'offer' && pc.signalingState !== 'stable' && me < from) return; // гонка: инициатор игнорирует встречный offer
         await pc.setRemoteDescription(data.sdp);
@@ -112,7 +129,7 @@ export function useVoice(opts: {
         else pendingIce.current.set(from, [...(pendingIce.current.get(from) ?? []), data.candidate]);
       }
     } catch { /* устаревшее сообщение */ }
-  }), [enabled, makePeer, send, me]); // eslint-disable-line
+  }), [enabled, makePeer, send, me, offer, closePeer]); // eslint-disable-line
 
   // Набор собеседников = все онлайн в комнате
   const othersKey = opts.others.slice().sort().join(',');
