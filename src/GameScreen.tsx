@@ -111,7 +111,8 @@ export default function GameScreen(p: GameScreenProps) {
           window.setTimeout(() => showElim(j + 1), 1200); return;
         }
         setView(game);
-        if (game.phase === 'play') { sfx('turn'); setTurnKey(k => k + 1); setBusy(false); }
+        setBusy(false);
+        if (game.phase === 'play') { sfx('turn'); setTurnKey(k => k + 1); }
         else { sfx('fanfare'); if (game.phase === 'gameEnd') setConfetti(Array.from({ length: 50 }, (_, i) => ({ left: Math.round(Math.random() * 100), hex: COLORS[i % 7].hex, dur: (2.4 + Math.random() * 2).toFixed(2), delay: (Math.random() * 2.5).toFixed(2) }))); }
       };
       showElim(0);

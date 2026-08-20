@@ -47,6 +47,13 @@ export function useVoice(opts: {
   const pendingIce = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
 
   const offerRef = useRef<(id: string) => void>(() => {});
+  /** Привязать трансивер к собеседнику: запомнить sender и подать в него микрофон, если он включён. */
+  const adoptTransceiver = (id: string, tr: RTCRtpTransceiver) => {
+    try { tr.direction = 'sendrecv'; } catch {}
+    senders.current.set(id, tr.sender);
+    const track = stream.current?.getAudioTracks()[0];
+    if (track) tr.sender.replaceTrack(track).catch(() => {});
+  };
   const setPeer = (id: string, patch: Partial<VoicePeer>) => setPeers(p => { const base: VoicePeer = p[id] ?? { id, speaking: false, connected: false }; return { ...p, [id]: { ...base, ...patch } }; });
 
   const detachAnalyser = (id: string) => { const a = analysers.current.get(id); if (a) { try { a.src.disconnect(); a.an.disconnect(); } catch {} analysers.current.delete(id); } };
@@ -72,11 +79,9 @@ export function useVoice(opts: {
     if (existing) return existing;
     const pc = new RTCPeerConnection({ iceServers: ICE });
     pcs.current.set(id, pc);
-    // Аудио-трансивер сразу: слушаем всегда, отправляем когда включён микрофон.
-    const tr = pc.addTransceiver('audio', { direction: 'sendrecv' });
-    senders.current.set(id, tr.sender);
-    const track = stream.current?.getAudioTracks()[0];
-    if (track) tr.sender.replaceTrack(track).catch(() => {});
+    // Инициатор создаёт аудио-канал сам; отвечающий возьмёт его из offer
+    // (Safari не переиспользует заранее созданный трансивер — появлялся второй, только на приём).
+    if (me < id) adoptTransceiver(id, pc.addTransceiver('audio', { direction: 'sendrecv' }));
 
     pc.onicecandidate = e => { if (e.candidate) send({ t: 'rtc', to: id, data: { candidate: e.candidate } }); };
     pc.ontrack = e => {
@@ -126,7 +131,11 @@ export function useVoice(opts: {
         await pc.setRemoteDescription(data.sdp);
         for (const c of pendingIce.current.get(from) ?? []) await pc.addIceCandidate(c).catch(() => {});
         pendingIce.current.delete(from);
-        if (data.sdp.type === 'offer') { const ans = await pc.createAnswer(); await pc.setLocalDescription(ans); send({ t: 'rtc', to: from, data: { sdp: pc.localDescription } }); }
+        if (data.sdp.type === 'offer') {
+          const tr = pc.getTransceivers().find(t => t.receiver.track?.kind === 'audio') ?? pc.getTransceivers()[0];
+          if (tr) adoptTransceiver(from, tr);
+          const ans = await pc.createAnswer(); await pc.setLocalDescription(ans); send({ t: 'rtc', to: from, data: { sdp: pc.localDescription } });
+        }
       } else if (data.candidate) {
         if (pc.remoteDescription) await pc.addIceCandidate(data.candidate).catch(() => {});
         else pendingIce.current.set(from, [...(pendingIce.current.get(from) ?? []), data.candidate]);
@@ -142,6 +151,15 @@ export function useVoice(opts: {
     for (const id of [...pcs.current.keys()]) if (!want.has(id)) closePeer(id);
     for (const id of want) makePeer(id);
   }, [enabled, othersKey, makePeer, closePeer]); // eslint-disable-line
+
+  // iOS может отклонить play() вне жеста — повторяем при любом касании
+  useEffect(() => {
+    if (!enabled) return;
+    const kick = () => { getCtx(); audios.current.forEach(a => { if (a.paused) a.play().catch(() => {}); }); };
+    window.addEventListener('pointerdown', kick, { passive: true });
+    document.addEventListener('visibilitychange', kick);
+    return () => { window.removeEventListener('pointerdown', kick); document.removeEventListener('visibilitychange', kick); };
+  }, [enabled]);
 
   // Индикация «кто говорит»
   useEffect(() => {
