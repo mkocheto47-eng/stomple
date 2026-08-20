@@ -99,6 +99,12 @@ describe('игра', () => {
     expect(r.phase).toBe('lobby');
     expect(r.members.every(m => m.color !== null)).toBe(true); // цвета сохраняются
   });
+  it('плеером управляет только хозяин', () => {
+    const r = lobby3();
+    expect(() => r.handle('b', { t: 'music', track: 1, playing: true, position: 0 })).toThrow(/хозяин/);
+    r.handle('a', { t: 'music', track: 1, playing: true, position: 12.5 });
+    expect(r.snapshot().music).toEqual({ track: 1, playing: true, position: 12.5, at: 1000 });
+  });
   it('снимок восстанавливается без потерь', () => {
     const r = lobby3(); r.handle('a', { t: 'start' });
     const r2 = Room.fromSnapshot(JSON.parse(JSON.stringify(r.snapshot())));

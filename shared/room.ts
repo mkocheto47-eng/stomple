@@ -6,7 +6,7 @@ import {
   newGame, applyMove, startRound, advanceTurn, defaultTargetScore, validatePath,
   type GameState, type PlayerColor, type Move,
 } from './engine';
-import { REACTIONS, REACTION_COOLDOWN_MS, type ClientMsg, type Member, type RoomSnapshot } from './protocol';
+import { REACTIONS, REACTION_COOLDOWN_MS, type ClientMsg, type Member, type RoomSnapshot, type MusicState } from './protocol';
 
 export class RoomError extends Error {}
 
@@ -17,6 +17,7 @@ export class Room {
   targetScore: number | null = null;
   game: GameState | null = null;
   waitingSince: number | null = null;
+  music: MusicState | null = null;
   now: () => number;
 
   constructor(code: string, now: () => number = Date.now) {
@@ -25,12 +26,12 @@ export class Room {
   }
 
   snapshot(): RoomSnapshot {
-    return { code: this.code, phase: this.phase, members: this.members, targetScore: this.targetScore, game: this.game, waitingSince: this.waitingSince };
+    return { code: this.code, phase: this.phase, members: this.members, targetScore: this.targetScore, game: this.game, waitingSince: this.waitingSince, music: this.music };
   }
 
   static fromSnapshot(s: RoomSnapshot, now?: () => number): Room {
     const r = new Room(s.code, now);
-    r.phase = s.phase; r.members = s.members; r.targetScore = s.targetScore; r.game = s.game; r.waitingSince = s.waitingSince;
+    r.phase = s.phase; r.members = s.members; r.targetScore = s.targetScore; r.game = s.game; r.waitingSince = s.waitingSince; r.music = s.music ?? null;
     return r;
   }
 
@@ -119,6 +120,12 @@ export class Room {
       case 'voice': m.voice = msg.on; return;
       case 'react': return this.react(id, msg.id);
       case 'rtc': return; // ретранслируется адаптером, стейт не меняет
+      case 'music': {
+        this.requireHost(id);
+        if (!Number.isInteger(msg.track) || msg.track < 0 || msg.track > 999) throw new RoomError('Нет такого трека');
+        this.music = { track: msg.track, playing: !!msg.playing, position: Math.max(0, Number(msg.position) || 0), at: this.now() };
+        return;
+      }
     }
   }
 

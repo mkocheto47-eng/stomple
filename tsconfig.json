@@ -9,6 +9,7 @@
     "skipLibCheck": true,
     "noEmit": true,
     "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
     "types": ["vitest/globals", "vite/client", "vite-plugin-pwa/client", "@cloudflare/workers-types"]
   },
   "include": ["shared", "tests", "party", "src"]

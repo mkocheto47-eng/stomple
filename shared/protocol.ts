@@ -26,8 +26,18 @@ export const REACTION_COOLDOWN_MS = 1200;
 
 export type RoomPhase = 'lobby' | 'game';
 
+/** Состояние общего плеера — задаёт хозяин, слушают все. */
+export interface MusicState {
+  track: number;
+  playing: boolean;
+  /** Позиция (сек) в момент `at` (серверное время, ms). */
+  position: number;
+  at: number;
+}
+
 /** Снимок комнаты, который получают все клиенты. */
 export interface RoomSnapshot {
+  music: MusicState | null;
   code: string;
   phase: RoomPhase;
   members: Member[];
@@ -52,7 +62,8 @@ export type ClientMsg =
   | { t: 'leave' }                               // выйти из игры
   | { t: 'react'; id: ReactionId }               // стикер всем (не хранится)
   | { t: 'voice'; on: boolean }                  // микрофон вкл/выкл
-  | { t: 'rtc'; to: string; data: unknown };     // WebRTC-сигналинг конкретному игроку
+  | { t: 'rtc'; to: string; data: unknown }      // WebRTC-сигналинг конкретному игроку
+  | { t: 'music'; track: number; playing: boolean; position: number }; // хозяин: плеер
 
 // ───────── сервер → клиент ─────────
 export type ServerMsg =
