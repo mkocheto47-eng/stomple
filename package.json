@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "deploy:party": "wrangler deploy",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "deploy:web": "npm run build && wrangler pages deploy dist --project-name stomple"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260820.1",

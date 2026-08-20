@@ -26,7 +26,8 @@ button:focus-visible,input:focus-visible{outline:3px solid #2b5ea7;outline-offse
 @keyframes turnIn{0%{transform:translateX(-10px);opacity:0}100%{transform:translateX(0);opacity:1}}
 @keyframes chipPulse{0%{box-shadow:0 0 0 0 var(--c)}100%{box-shadow:0 0 0 10px rgba(0,0,0,0)}}
 @keyframes toastUp{0%{transform:translateY(16px);opacity:0}100%{transform:translateY(0);opacity:1}}
-@keyframes reactPop{0%{transform:translateY(10px) scale(.3);opacity:0}12%{transform:translateY(-4px) scale(1.15);opacity:1}20%{transform:translateY(0) scale(1)}80%{transform:translateY(0) scale(1);opacity:1}100%{transform:translateY(-16px) scale(.9);opacity:0}}
+@keyframes reactIn{0%{opacity:0}10%{opacity:1}85%{opacity:1}100%{opacity:0}}
+@keyframes reactBounce{0%{transform:scale(.2)}14%{transform:scale(1.18)}24%{transform:scale(.96)}32%{transform:scale(1)}85%{transform:scale(1)}100%{transform:scale(.6)}}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.35}}
 @media (prefers-reduced-motion: reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 `;

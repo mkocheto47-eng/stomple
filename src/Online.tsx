@@ -42,9 +42,12 @@ export default function Online({ code, sfx, onHome, headerRight, onVoice }: { co
 
   const send = useCallback((m: ClientMsg) => { sock.current?.send(JSON.stringify(m)); }, []);
   const onRtc = useCallback((cb: (from: string, data: any) => void) => { rtcSubs.current.add(cb); return () => { rtcSubs.current.delete(cb); }; }, []);
-  const voiceOthers = useMemo(() => (room?.members ?? []).filter(m => m.id !== me && m.voice && m.online && !m.left).map(m => m.id), [room, me]);
-  const voice = useVoice({ me, others: voiceOthers, send, onRtc });
-  useEffect(() => { onVoice?.(voice.on); }, [voice.on]); // eslint-disable-line
+  const voiceOthers = useMemo(() => (room?.members ?? []).filter(m => m.id !== me && m.online && !m.left).map(m => m.id), [room, me]);
+  // Канал поднимаем после первого касания (иначе браузер не даст проиграть звук собеседников)
+  const [touched, setTouched] = useState(false);
+  useEffect(() => { const f = () => setTouched(true); const evs = ['pointerdown', 'touchstart', 'keydown']; evs.forEach(e => window.addEventListener(e, f, { once: true, passive: true })); return () => evs.forEach(e => window.removeEventListener(e, f)); }, []);
+  const voice = useVoice({ me, others: voiceOthers, enabled: !!room && conn === 'open' && touched, send, onRtc });
+  useEffect(() => { onVoice?.(voice.mic); }, [voice.mic]); // eslint-disable-line
   const mine = room?.members.find(m => m.id === me);
   const isHost = !!mine?.host;
 
@@ -92,14 +95,14 @@ export default function Online({ code, sfx, onHome, headerRight, onVoice }: { co
         social={{
           reactions,
           onReact: (id: ReactionId) => send({ t: 'react', id }),
-          voice: { on: voice.on, toggle: voice.toggle, peers: voice.peers, mySpeaking: voice.mySpeaking, error: voice.error, members: Object.fromEntries(room.members.map(m => [m.id, m.voice])) },
+          voice: { on: voice.mic, toggle: voice.toggle, peers: voice.peers, mySpeaking: voice.mySpeaking, error: voice.error, members: Object.fromEntries(room.members.map(m => [m.id, m.voice])) },
         }}
         onMove={(m: Move) => send({ t: 'move', move: m })}
         onNextRound={() => send({ t: 'nextRound' })}
         onAgain={() => send({ t: 'again' })}
         onToLobby={() => send({ t: 'toLobby' })}
         onSkip={() => send({ t: 'skip' })}
-        onLeave={inGame ? () => { if (confirm('Выйти из партии? Вернуться в неё будет нельзя.')) { if (voice.on) voice.stop(); send({ t: 'leave' }); onHome(); } } : undefined}
+        onLeave={inGame ? () => { if (confirm('Выйти из партии? Вернуться в неё будет нельзя.')) { voice.leave(); send({ t: 'leave' }); onHome(); } } : undefined}
       />
       <Toast text={toast} />
     </>;
@@ -112,7 +115,7 @@ export default function Online({ code, sfx, onHome, headerRight, onVoice }: { co
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingTop: 8 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <button onClick={() => { send({ t: 'leave' }); onHome(); }} style={{ ...btnSoft, padding: '8px 12px', fontSize: 13 }}>← Выйти</button>
+        <button onClick={() => { voice.leave(); send({ t: 'leave' }); onHome(); }} style={{ ...btnSoft, padding: '8px 12px', fontSize: 13 }}>← Выйти</button>
         <div style={{ display: 'flex', gap: 6 }}>{connBadge}{headerRight}</div>
       </div>
       <div style={{ textAlign: 'center' }}><Logo size={32} /></div>
@@ -165,7 +168,8 @@ export default function Online({ code, sfx, onHome, headerRight, onVoice }: { co
         </>}
       </div>
 
-      <button onClick={voice.toggle} style={{ ...btnSoft, background: voice.on ? 'linear-gradient(180deg,#4f9d45,#3e8236)' : '#efe9da', color: voice.on ? '#fff' : '#55503f' }}>{voice.on ? '🎙 Микрофон включён' : '🎤 Включить голосовой чат'}</button>
+      <button onClick={voice.toggle} style={{ ...btnSoft, background: voice.mic ? 'linear-gradient(180deg,#4f9d45,#3e8236)' : '#efe9da', color: voice.mic ? '#fff' : '#55503f' }}>{voice.mic ? '🎙 Микрофон включён — вас слышат' : '🎤 Включить микрофон'}</button>
+      <div style={{ textAlign: 'center', fontSize: 12, color: '#9a927e', fontWeight: 700, marginTop: -8 }}>Голосовой канал общий: всех, кто включил микрофон, слышно сразу</div>
       {isHost
         ? <button disabled={!canStart} onClick={() => send({ t: 'start' })} style={{ ...btnPrimary, ...(canStart ? {} : btnDisabled) }}>Начать игру</button>
         : <div style={{ textAlign: 'center', fontWeight: 700, color: '#9a927e', fontSize: 13 }}>Игру начнёт {room.members.find(m => m.host)?.name ?? 'хозяин'}</div>}
