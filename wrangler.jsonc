@@ -1,0 +1,12 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "stomple",
+  "main": "party/server.ts",
+  "compatibility_date": "2025-06-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "durable_objects": {
+    "bindings": [{ "name": "Stomple", "class_name": "Stomple" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Stomple"] }],
+  "observability": { "enabled": true }
+}
