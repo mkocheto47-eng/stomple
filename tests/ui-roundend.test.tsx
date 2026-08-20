@@ -19,7 +19,7 @@ describe('конец раунда', () => {
     rerender(ui());
     await act(async () => { vi.advanceTimersByTime(4000); });
     expect(queryByText(/Раунд 1 окончен/)).toBeTruthy();
-    expect(getByText(/\+5 очков/)).toBeTruthy(); // 3 + 1 белый + 1 свой
+    expect(getByText(/\+7 очков/)).toBeTruthy(); // 3 + 3 за белый + 1 за свой
     expect(getByText('Следующий раунд')).toBeTruthy();
   });
 });

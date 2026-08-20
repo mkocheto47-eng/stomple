@@ -42,10 +42,16 @@ export interface Move {
   path: number[];
 }
 
+export const WIN_POINTS = 3;
+export const OWN_BALL_POINTS = 1;
+export const WHITE_BALL_POINTS = 3;
+
 export interface RoundResult {
   winnerId: string;
   base: number;
+  /** Сколько белых уцелело (каждый — WHITE_BALL_POINTS). */
   whites: number;
+  /** Сколько своих уцелело (каждый — OWN_BALL_POINTS). */
   own: number;
   total: number;
 }
@@ -238,10 +244,11 @@ export const sameMove = (a: Move, b: Move) =>
 
 // ───────────────────────── подсчёт ─────────────────────────
 
+/** Очки за раунд: 3 за победу + 1 за каждый свой уцелевший шарик + 3 за каждый белый. */
 export function scoreRound(board: Board, winner: Player): RoundResult {
   const whites = board.filter(b => b === WHITE).length;
   const own = board.filter(b => b === winner.color).length;
-  return { winnerId: winner.id, base: 3, whites, own, total: 3 + whites + own };
+  return { winnerId: winner.id, base: WIN_POINTS, whites, own, total: WIN_POINTS + whites * WHITE_BALL_POINTS + own * OWN_BALL_POINTS };
 }
 
 // ───────────────────────── состояние ─────────────────────────

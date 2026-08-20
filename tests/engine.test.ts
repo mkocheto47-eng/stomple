@@ -14,7 +14,7 @@ const two = (rng = seeded(42)) => newGame({
 /** Собрать состояние с заданной доской и позициями. */
 function custom(board: Board, players: { id: string; color: 0|1|2|3|4|5; pos: number | null; alive?: boolean; score?: number }[], turn = 0): GameState {
   return {
-    phase: 'play', board, turn, round: 1, targetScore: 7, lastMove: null, eliminated: [], roundResult: null,
+    phase: 'play', board, turn, round: 1, targetScore: 11, lastMove: null, eliminated: [], roundResult: null,
     players: players.map(p => ({ id: p.id, name: p.id, color: p.color, pos: p.pos, alive: p.alive ?? true, score: p.score ?? 0 })),
   };
 }
@@ -161,14 +161,14 @@ describe('выбывание и конец раунда', () => {
     expect(n.turn).toBe(2);
     expect(n.phase).toBe('play');
   });
-  it('когда остался один — раунд окончен, очки: 3 + белые + свои', () => {
+  it('когда остался один — раунд окончен, очки: 3 + 1 за свой + 3 за белый', () => {
     const b = empty();
     b[idx(0, 0)] = 1; b[idx(5, 5)] = WHITE; b[idx(6, 0)] = WHITE; b[idx(6, 1)] = 0; // свой цвет a
     const s = custom(b, [{ id: 'a', color: 0, pos: idx(1, 1) }, { id: 'b', color: 3, pos: idx(3, 3) }]);
     const n = applyMove(s, { type: 'step', path: [idx(0, 0)] });
     expect(n.phase).toBe('roundEnd');
-    expect(n.roundResult).toEqual({ winnerId: 'a', base: 3, whites: 2, own: 1, total: 6 });
-    expect(n.players[0].score).toBe(6);
+    expect(n.roundResult).toEqual({ winnerId: 'a', base: 3, whites: 2, own: 1, total: 3 + 2 * 3 + 1 });
+    expect(n.players[0].score).toBe(10);
     expect(n.players[1].score).toBe(0);
   });
   it('игра идёт до порога: ниже порога → roundEnd, достиг или превысил → gameEnd', () => {
@@ -183,12 +183,12 @@ describe('выбывание и конец раунда', () => {
     expect(r2.board.filter(c => c !== null)).toHaveLength(CELLS);
     expect(r2.players.every(p => p.alive && p.pos === null)).toBe(true);
     expect(r2.players[0].score).toBe(3); // очки сохраняются между раундами
-    // порог 7: у a уже 4, победа в раунде даёт ещё 3 → 7 → gameEnd
+    // порог 11: у a уже 8, победа в раунде даёт ещё 3 → 11 → gameEnd
     const bb = empty(); bb[idx(0, 0)] = 1;
-    const last = { ...custom(bb, [{ id: 'a', color: 0, pos: idx(1, 1), score: 4 }, { id: 'b', color: 3, pos: idx(3, 3) }]), round: 2 };
+    const last = { ...custom(bb, [{ id: 'a', color: 0, pos: idx(1, 1), score: 8 }, { id: 'b', color: 3, pos: idx(3, 3) }]), round: 2 };
     expect(applyMove(last, { type: 'step', path: [idx(0, 0)] }).phase).toBe('gameEnd');
-    // превышение тоже завершает: 5 + 3 = 8 ≥ 7
-    const over = { ...custom(bb, [{ id: 'a', color: 0, pos: idx(1, 1), score: 5 }, { id: 'b', color: 3, pos: idx(3, 3) }]), round: 2 };
+    // превышение тоже завершает: 9 + 3 = 12 ≥ 11
+    const over = { ...custom(bb, [{ id: 'a', color: 0, pos: idx(1, 1), score: 9 }, { id: 'b', color: 3, pos: idx(3, 3) }]), round: 2 };
     expect(applyMove(over, { type: 'step', path: [idx(0, 0)] }).phase).toBe('gameEnd');
   });
   it('ходить после конца раунда нельзя', () => {

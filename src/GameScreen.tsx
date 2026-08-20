@@ -268,7 +268,7 @@ export default function GameScreen(p: GameScreenProps) {
             <div style={{ fontFamily: UNB, fontSize: 19, fontWeight: 800, color: '#2b5ea7' }}>Раунд {view.round} окончен!</div>
             <div style={{ width: 52, height: 52, borderRadius: '50%', background: COLORS[winner.color].hex, margin: '0 auto', boxShadow: 'inset 0 -5px 8px rgba(0,0,0,.28), inset 0 4px 6px rgba(255,255,255,.5)' }} />
             <div style={{ fontWeight: 900, fontSize: 19 }}>{winner.id === me ? 'Вы остались последним!' : `${winner.name} остался последним!`}</div>
-            <div style={{ fontWeight: 800, fontSize: 15, color: '#7c7666' }}>+{ov.total} очков<div style={{ fontWeight: 700, fontSize: 13, color: '#9a927e', marginTop: 4 }}>3 за победу · {ov.whites} за белые · {ov.own} за свои</div></div>
+            <div style={{ fontWeight: 800, fontSize: 15, color: '#7c7666' }}>+{ov.total} очков<div style={{ fontWeight: 700, fontSize: 13, color: '#9a927e', marginTop: 4 }}>3 за победу · {ov.whites} бел. × 3 = {ov.whites * 3} · {ov.own} своих × 1 = {ov.own}</div></div>
             <Standings players={sorted} target={view.targetScore} me={me} />
             {p.isHost
               ? <button onClick={p.onNextRound} style={{ ...btnPrimary, marginTop: 6, padding: 14, fontSize: 16 }}>Следующий раунд</button>
