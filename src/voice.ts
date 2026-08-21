@@ -152,6 +152,37 @@ export function useVoice(opts: {
     for (const id of want) makePeer(id);
   }, [enabled, othersKey, makePeer, closePeer]); // eslint-disable-line
 
+  // Сторож: пересоздаём сломанные соединения, перезапускаем подвисшие, при возврате в приложение — сразу.
+  const disconnectedSince = useRef<Map<string, number>>(new Map());
+  useEffect(() => {
+    if (!enabled) return;
+    const check = () => {
+      const want = new Set(opts.others);
+      for (const id of want) {
+        const pc = pcs.current.get(id);
+        if (!pc) { makePeer(id); continue; }
+        const st = pc.connectionState;
+        if (st === 'failed' || st === 'closed') { closePeer(id); makePeer(id); disconnectedSince.current.delete(id); continue; }
+        if (st === 'disconnected') {
+          const since = disconnectedSince.current.get(id) ?? Date.now();
+          disconnectedSince.current.set(id, since);
+          if (Date.now() - since > 4000) {
+            if (me < id && pc.signalingState === 'stable') {
+              pc.createOffer({ iceRestart: true }).then(o => pc.setLocalDescription(o)).then(() => send({ t: 'rtc', to: id, data: { sdp: pc.localDescription } })).catch(() => {});
+            } else send({ t: 'rtc', to: id, data: { ready: true } });
+            disconnectedSince.current.set(id, Date.now());
+          }
+        } else disconnectedSince.current.delete(id);
+        // соединение есть, но дорожки нет дольше 8 с — попросить offer заново
+        if (st === 'connected' && !audios.current.get(id) && me > id) send({ t: 'rtc', to: id, data: { ready: true } });
+      }
+    };
+    const t = setInterval(check, 3000);
+    const onVis = () => { if (document.visibilityState === 'visible') { getCtx(); setTimeout(check, 300); audios.current.forEach(a => a.play().catch(() => {})); } };
+    document.addEventListener('visibilitychange', onVis);
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', onVis); };
+  }, [enabled, othersKey, makePeer, closePeer, me, send]); // eslint-disable-line
+
   // iOS может отклонить play() вне жеста — повторяем при любом касании
   useEffect(() => {
     if (!enabled) return;
@@ -183,6 +214,8 @@ export function useVoice(opts: {
       const s = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false });
       stream.current = s;
       const track = s.getAudioTracks()[0];
+      // Система отобрала микрофон (звонок, другое приложение) — честно выключаемся.
+      track.onended = () => { if (stream.current === s) micOffRef.current(); };
       for (const sender of senders.current.values()) sender.replaceTrack(track).catch(() => {});
       attachAnalyser('__me', s);
       setMic(true);
@@ -192,6 +225,7 @@ export function useVoice(opts: {
     }
   }, [send]);
 
+  const micOffRef = useRef<() => void>(() => {});
   const micOff = useCallback(() => {
     for (const sender of senders.current.values()) sender.replaceTrack(null).catch(() => {});
     stream.current?.getTracks().forEach(t => t.stop()); stream.current = null;
@@ -199,6 +233,7 @@ export function useVoice(opts: {
     setMic(false); setMySpeaking(false);
     send({ t: 'voice', on: false });
   }, [send]);
+  micOffRef.current = micOff;
 
   const leave = useCallback(() => {
     if (mic) micOff();

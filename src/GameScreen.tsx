@@ -144,11 +144,10 @@ export default function GameScreen(p: GameScreenProps) {
     const m = targets.get(i);
     if (m) { stomp(m); return; }
     sfx('error');
-    if (pending) { showToast('Дальше — только соседний шарик того же цвета', 1400); return; }
+    if (pending) { showToast('Цепочку нужно закончить: соседний шарик того же цвета', 1500); return; }
     if (game.board[i] === null) { showToast('Лунка пуста', 900); return; }
     showToast(validatePath(game, { type: teleMode ? 'teleport' : 'step', path: [i] }) || 'Сюда нельзя', 1600);
   };
-  const finishPending = () => { if (!pending || busy) return; sfx('tap'); const m = pending; setPending(null); p.onMove(m); };
   const canTele = canAct && !pending && cur.pos !== null && startCells(game, game.turn, 'teleport').length > 0;
   const teleToggle = () => {
     if (!canAct || pending) return;
@@ -166,7 +165,7 @@ export default function GameScreen(p: GameScreenProps) {
   const ov = view.phase !== 'play' && !busy ? view.roundResult : null;
   const winner = ov && view.players.find(q => q.id === ov.winnerId);
   const sorted = view.players.slice().sort((a, b) => b.score - a.score);
-  const status = pending ? 'Цепочка — можно дальше' : cur?.pos === null ? 'Первый ход — с края' : teleMode ? 'Прыжок на свой цвет' : myTurn ? 'Ваш ход' : 'Ждём ход…';
+  const status = pending ? 'Цепочка: продолжайте, пока рядом есть этот цвет' : cur?.pos === null ? 'Первый ход — с края' : teleMode ? 'Прыжок на свой цвет' : myTurn ? 'Ваш ход' : 'Ждём ход…';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: 1 }}>
@@ -241,7 +240,7 @@ export default function GameScreen(p: GameScreenProps) {
         {waitingFor && p.isHost && p.onSkip
           ? <button onClick={p.onSkip} style={{ border: 'none', borderRadius: 14, padding: '10px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', background: '#d94436', color: '#fff', boxShadow: '0 3px 0 #9e2c21', flex: 'none' }}>Пропустить</button>
           : pending && !busy
-            ? <button onClick={finishPending} style={{ border: 'none', borderRadius: 14, padding: '10px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', background: 'linear-gradient(180deg,#4f9d45,#3e8236)', color: '#fff', boxShadow: '0 3px 0 #2d6127', flex: 'none' }}>Готово</button>
+            ? <div style={{ borderRadius: 14, padding: '10px 14px', fontSize: 13, fontWeight: 700, background: '#fdf3d0', color: '#8a6a00', flex: 'none', fontFamily: UNB }}>Цепочка</div>
             : myTurn && <button onClick={teleToggle} style={{ border: 'none', borderRadius: 14, padding: '10px 14px', fontSize: 13, fontWeight: 700, cursor: canTele ? 'pointer' : 'default', background: teleMode ? '#ffd84d' : canTele ? '#2b5ea7' : '#e8e2d3', color: teleMode ? '#5a4200' : canTele ? '#fff' : '#a49c88', boxShadow: `0 3px 0 ${teleMode ? '#cfa723' : canTele ? '#1d4276' : '#d3ccba'}`, flex: 'none' }}>Прыжок</button>}
       </div>}
 

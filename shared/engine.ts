@@ -147,6 +147,11 @@ export function validatePath(state: GameState, move: Move, playerIdx: number = s
     if (board[cur] !== color) return 'Цепочка идёт только по шарикам одного цвета';
     used.add(cur);
   }
+  // Цепочка обязательна: пока рядом есть непродавленный шарик того же цвета — ход не окончен.
+  if (p.pos !== null) {
+    const last = move.path[move.path.length - 1];
+    if (neighbors(last).some(n => board[n] === color && !used.has(n))) return 'Цепочку нужно продолжить — рядом ещё шарики этого цвета';
+  }
   return null;
 }
 
@@ -166,7 +171,9 @@ export function continuations(state: GameState, partial: Move): number[] {
 }
 
 /**
- * Цели для тапа: лунка → кратчайший ход (BFS), который на ней заканчивается.
+ * Цели для тапа: лунка → кратчайший путь (BFS), который на ней заканчивается.
+ * Это может быть незавершённая цепочка — клиент проверяет continuations и
+ * либо ждёт следующего тапа, либо отправляет ход.
  * С `partial` (начатая цепочка) — только её продолжения, включая дальние.
  */
 export function targetCells(state: GameState, opts: { type?: Move['type']; partial?: Move } = {}): Map<number, Move> {
@@ -227,13 +234,16 @@ export function chainPaths(board: Board, start: number): number[][] {
   return out;
 }
 
-/** Полный перебор легальных ходов (медленно на больших кластерах — для тестов). */
+/** Полный перебор завершённых легальных ходов (медленно на больших кластерах — для тестов). */
 export function legalMoves(state: GameState, playerIdx: number = state.turn): Move[] {
   const moves: Move[] = [];
   for (const type of ['step', 'teleport'] as const) {
     for (const s of startCells(state, playerIdx, type)) {
       if (state.players[playerIdx].pos === null) { moves.push({ type, path: [s] }); continue; }
-      for (const path of chainPaths(state.board, s)) moves.push({ type, path });
+      for (const path of chainPaths(state.board, s)) {
+        const m = { type, path };
+        if (validatePath(state, m, playerIdx) === null) moves.push(m);
+      }
     }
   }
   return moves;

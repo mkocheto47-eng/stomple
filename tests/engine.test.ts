@@ -59,16 +59,17 @@ describe('первый ход', () => {
 });
 
 describe('шаг и цепочка', () => {
-  it('шаг на соседа; цепочку можно продавить частично или целиком', () => {
+  it('шаг на соседа; цепочка обязательна — остановиться посреди нельзя', () => {
     const b = empty();
     // стомпер на (3,3); справа линия жёлтых (2) на (3,4),(3,5),(3,6); белый на (2,3)
     b[idx(3, 4)] = 2; b[idx(3, 5)] = 2; b[idx(3, 6)] = 2; b[idx(2, 3)] = WHITE;
     const s = custom(b, [{ id: 'a', color: 0, pos: idx(3, 3) }, { id: 'b', color: 3, pos: null }]);
     const moves = legalMoves(s).filter(m => m.type === 'step');
-    expect(moves).toContainEqual({ type: 'step', path: [idx(3, 4)] });
+    expect(moves).not.toContainEqual({ type: 'step', path: [idx(3, 4)] });
     expect(moves).toContainEqual({ type: 'step', path: [idx(3, 4), idx(3, 5), idx(3, 6)] });
     expect(moves).toContainEqual({ type: 'step', path: [idx(2, 3)] });
-    expect(isLegal(s, { type: 'step', path: [idx(3, 4), idx(3, 5)] })).toBe(true);
+    expect(validatePath(s, { type: 'step', path: [idx(3, 4), idx(3, 5)] })).toMatch(/продолжить/);
+    expect(isLegal(s, { type: 'step', path: [idx(3, 4), idx(3, 5), idx(3, 6)] })).toBe(true);
     // продолжения считаются от текущего пути
     expect(continuations(s, { type: 'step', path: [idx(3, 4)] })).toEqual([idx(3, 5)]);
     expect(continuations(s, { type: 'step', path: [idx(3, 4), idx(3, 5), idx(3, 6)] })).toEqual([]);
@@ -79,7 +80,7 @@ describe('шаг и цепочка', () => {
     const b = empty();
     b[idx(3, 4)] = 2; b[idx(2, 5)] = 2; b[idx(1, 5)] = 2; b[idx(0, 0)] = 2;
     const s = custom(b, [{ id: 'a', color: 0, pos: idx(3, 3) }, { id: 'b', color: 3, pos: null }]);
-    expect(isLegal(s, { type: 'step', path: [idx(3, 4), idx(2, 5)] })).toBe(true);
+    expect(isLegal(s, { type: 'step', path: [idx(3, 4), idx(2, 5)] })).toBe(false); // (1,5) ещё рядом
     expect(isLegal(s, { type: 'step', path: [idx(3, 4), idx(2, 5), idx(1, 5)] })).toBe(true);
     expect(isLegal(s, { type: 'step', path: [idx(3, 4), idx(1, 5)] })).toBe(false);
     expect(isLegal(s, { type: 'step', path: [idx(3, 4), idx(0, 0)] })).toBe(false);
@@ -131,17 +132,17 @@ describe('телепортация', () => {
     const s = custom(b, [{ id: 'a', color: 0, pos: idx(3, 3) }, { id: 'b', color: 3, pos: null }]);
     expect(legalMoves(s).filter(m => m.type === 'teleport')).toHaveLength(0);
   });
-  it('с шарика в своей цепочке можно продолжить по линии в любую сторону', () => {
+  it('прыжок в свою цепочку обязывает продавить её до конца', () => {
     const b = empty();
     b[idx(0, 0)] = 0; b[idx(0, 1)] = 0; b[idx(0, 2)] = 0;
     const s = custom(b, [{ id: 'a', color: 0, pos: idx(3, 3) }, { id: 'b', color: 3, pos: null }]);
     const tele = legalMoves(s).filter(m => m.type === 'teleport');
     expect(tele).toContainEqual({ type: 'teleport', path: [idx(0, 0), idx(0, 1), idx(0, 2)] });
     expect(tele).toContainEqual({ type: 'teleport', path: [idx(0, 2), idx(0, 1), idx(0, 0)] });
-    // из середины — в обе стороны, но по одному направлению за ход
+    // из середины: (0,1) → (0,2), а (0,0) остался рядом с (0,1)? нет — сосед последней (0,2) это (0,1), уже использован
     expect(tele).toContainEqual({ type: 'teleport', path: [idx(0, 1), idx(0, 2)] });
     expect(tele).toContainEqual({ type: 'teleport', path: [idx(0, 1), idx(0, 0)] });
-    expect(isLegal(s, { type: 'teleport', path: [idx(0, 0)] })).toBe(true);
+    expect(isLegal(s, { type: 'teleport', path: [idx(0, 0)] })).toBe(false);
     expect(continuations(s, { type: 'teleport', path: [idx(0, 1)] }).sort()).toEqual([idx(0, 0), idx(0, 2)].sort());
   });
 });
@@ -149,13 +150,13 @@ describe('телепортация', () => {
 describe('выбывание и конец раунда', () => {
   it('игрок без ходов выбывает, ход идёт дальше', () => {
     const b = empty();
-    b[idx(0, 0)] = 1; b[idx(0, 1)] = 1; // рядом с a (на (1,1)), далеко от b и c
+    b[idx(0, 0)] = 1; b[idx(0, 1)] = 1; b[idx(0, 3)] = 2; // (0,3) останется для c
     const s = custom(b, [
       { id: 'a', color: 0, pos: idx(1, 1) },
       { id: 'b', color: 3, pos: idx(6, 6) },
       { id: 'c', color: 4, pos: idx(1, 2) },
     ]);
-    const n = applyMove(s, { type: 'step', path: [idx(0, 0)] });
+    const n = applyMove(s, { type: 'step', path: [idx(0, 0), idx(0, 1)] });
     expect(n.eliminated).toEqual(['b']);
     expect(n.players[1].alive).toBe(false);
     expect(n.turn).toBe(2);
@@ -206,19 +207,13 @@ describe('быстрые проверки согласованы с перебо
       let g = newGame({ players: [0, 1, 2].map(c => ({ id: 'p' + c, name: 'P' + c, color: c as 0 })), rng });
       for (let k = 0; k < 6 && g.phase === 'play'; k++) {
         const moves = legalMoves(g);
-        for (const m of moves) expect(isLegal(g, m)).toBe(true);
+        for (const m of moves) { expect(isLegal(g, m)).toBe(true); expect(continuations(g, m)).toEqual([]); }
         const tc = targetCells(g);
-        const ends = new Set(moves.map(m => m.path[m.path.length - 1]));
-        expect(new Set(tc.keys())).toEqual(ends);
-        for (const [cell, m] of tc) {
-          expect(m.path[m.path.length - 1]).toBe(cell);
-          const shortest = Math.min(...moves.filter(x => x.path[x.path.length - 1] === cell).map(x => x.path.length));
-          expect(m.path.length).toBe(shortest);
-        }
+        for (const m of moves) expect(tc.has(m.path[m.path.length - 1])).toBe(true);
+        for (const [cell, m] of tc) expect(m.path[m.path.length - 1]).toBe(cell);
+        // любая цель, у которой нет продолжений, — легальный завершённый ход
+        for (const m of tc.values()) if (continuations(g, m).length === 0) expect(isLegal(g, m)).toBe(true);
         const m0 = moves[Math.floor(rng() * moves.length)];
-        const cont = continuations(g, m0);
-        const viaEnum = new Set(moves.filter(x => x.type === m0.type && x.path.length === m0.path.length + 1 && m0.path.every((v, i) => v === x.path[i])).map(x => x.path[m0.path.length]));
-        expect(new Set(cont)).toEqual(viaEnum);
         g = applyMove(g, m0);
       }
     }
