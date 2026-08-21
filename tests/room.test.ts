@@ -15,12 +15,19 @@ const play = (r: Room, id: string) => {
 };
 
 describe('лобби', () => {
-  it('первый вошедший — хозяин; при его уходе хозяин переходит дальше', () => {
-    const r = lobby3();
+  it('первый вошедший — хозяин; при обрыве хозяин переходит, место держится 90 с', () => {
+    let t = 1000;
+    const r = new Room('ABCD', () => t);
+    r.connect('a', 'Аня'); r.connect('b', 'Боря'); r.connect('c', 'Вера');
+    r.handle('a', { t: 'color', color: 0 });
     expect(r.host()?.id).toBe('a');
     r.disconnect('a');
-    expect(r.members.map(m => m.id)).toEqual(['b', 'c']);
+    expect(r.members.map(m => m.id)).toEqual(['a', 'b', 'c']); // место сохранено
     expect(r.host()?.id).toBe('b');
+    t += 5000; r.connect('a', '');
+    expect(r.member('a')?.color).toBe(0); // вернулся со своим цветом
+    r.disconnect('a'); t += 100_000; r.connect('z', 'Зина');
+    expect(r.members.map(m => m.id)).toEqual(['b', 'c', 'z']); // спустя 90 с место освобождено
   });
   it('цвет нельзя взять занятый; стартовать может только хозяин и только с цветами', () => {
     const r = lobby3();

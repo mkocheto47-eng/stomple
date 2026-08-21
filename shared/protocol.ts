@@ -17,7 +17,12 @@ export interface Member {
   left: boolean;
   /** Микрофон включён (участвует в голосовом чате). */
   voice: boolean;
+  /** Когда пропала связь (ms); null — на связи. */
+  offlineSince?: number | null;
 }
+
+/** Сколько держать место за отключившимся в лобби, прежде чем освободить. */
+export const LOBBY_GRACE_MS = 90_000;
 
 /** Стикеры-реакции: id → файл в /reactions/. */
 export const REACTIONS = ['love', 'cool', 'devil', 'angel', 'shock', 'side-eye', 'sweat', 'cry', 'frozen'] as const;

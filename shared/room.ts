@@ -6,7 +6,7 @@ import {
   newGame, applyMove, startRound, advanceTurn, defaultTargetScore, validatePath,
   type GameState, type PlayerColor, type Move,
 } from './engine';
-import { REACTIONS, REACTION_COOLDOWN_MS, type ClientMsg, type Member, type RoomSnapshot, type MusicState } from './protocol';
+import { REACTIONS, REACTION_COOLDOWN_MS, LOBBY_GRACE_MS, type ClientMsg, type Member, type RoomSnapshot, type MusicState } from './protocol';
 
 export class RoomError extends Error {}
 
@@ -43,15 +43,23 @@ export class Room {
   /** Активные участники: не вышли (в игре — только те, кто есть в партии). */
   active() { return this.members.filter(m => !m.left); }
 
+  /** Освободить места в лобби за теми, кто отвалился давно. */
+  private prune() {
+    if (this.phase !== 'lobby') return;
+    const now = this.now();
+    this.members = this.members.filter(m => m.online || !m.offlineSince || now - m.offlineSince < LOBBY_GRACE_MS);
+  }
+
   connect(id: string, name: string): Member {
+    this.prune();
     let m = this.member(id);
     if (!m) {
       if (this.phase === 'game') throw new RoomError('Игра уже идёт — подождите, пока хозяин вернёт всех в лобби');
       if (this.active().length >= 6) throw new RoomError('В комнате уже 6 игроков');
-      m = { id, name: name.trim().slice(0, 12) || 'Игрок', color: null, online: true, host: this.members.length === 0, left: false, voice: false };
+      m = { id, name: name.trim().slice(0, 12) || 'Игрок', color: null, online: true, host: this.members.length === 0, left: false, voice: false, offlineSince: null };
       this.members.push(m);
     } else {
-      m.online = true;
+      m.online = true; m.offlineSince = null;
       if (name.trim()) m.name = name.trim().slice(0, 12);
     }
     this.ensureHost();
@@ -59,11 +67,13 @@ export class Room {
     return m;
   }
 
+  /**
+   * Обрыв связи. Место сохраняем: в игре — всегда (игрок вернётся по ссылке),
+   * в лобби — LOBBY_GRACE_MS, чтобы короткий обрыв на мобильной сети не выбрасывал из комнаты.
+   */
   disconnect(id: string) {
     const m = this.member(id); if (!m) return;
-    m.online = false; m.voice = false;
-    // В лобби ушедший освобождает место сразу.
-    if (this.phase === 'lobby') this.members = this.members.filter(x => x.id !== id);
+    m.online = false; m.voice = false; m.offlineSince = this.now();
     this.ensureHost();
     this.refreshWaiting();
   }
@@ -141,6 +151,7 @@ export class Room {
   private start(id: string) {
     this.requireHost(id);
     if (this.phase !== 'lobby') throw new RoomError('Игра уже идёт');
+    this.prune();
     const players = this.members.filter(m => !m.left && m.online);
     if (players.length < 2) throw new RoomError('Нужно хотя бы 2 игрока');
     if (players.length > 6) throw new RoomError('Максимум 6 игроков');
@@ -204,6 +215,7 @@ export class Room {
   private leave(id: string) {
     const m = this.member(id)!;
     if (this.phase === 'lobby') { this.members = this.members.filter(x => x.id !== id); this.ensureHost(); return; }
+    m.voice = false;
     m.left = true;
     if (this.game && this.game.phase === 'play') {
       const pi = this.game.players.findIndex(p => p.id === id);

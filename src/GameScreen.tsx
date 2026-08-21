@@ -37,6 +37,9 @@ export interface GameScreenProps {
   social?: Social;
 }
 
+/** Ключ состояния: меняется при любом событии, которое нужно показать (ход, пропуск, выход, новый раунд). */
+const stateKey = (g: GameState) =>
+  `${g.round}:${g.phase}:${g.turn}:${g.players.map(q => (q.alive ? 1 : 0)).join('')}:${g.lastMove ? `${g.lastMove.playerId}:${g.lastMove.path.join(',')}` : '-'}`;
 const moveKey = (g: GameState) => g.lastMove ? `${g.round}:${g.lastMove.playerId}:${g.lastMove.path.join(',')}` : `${g.round}:-`;
 
 export default function GameScreen(p: GameScreenProps) {
@@ -57,7 +60,6 @@ export default function GameScreen(p: GameScreenProps) {
   useEffect(() => { if (!diag) return; const t = setInterval(() => setDiag(p.social?.voice.debug?.() ?? null), 1000); return () => clearInterval(t); }, [diag, p.social]);
   const [confetti, setConfetti] = useState<{ left: number; hex: string; dur: string; delay: string }[]>([]);
   const toastT = useRef<number>(0);
-  const animatedKey = useRef<string>('');
   const localPrefix = useRef<number[]>([]); // лунки, уже утопленные локально (начатая цепочка)
   const roundRef = useRef<number>(0);
 
@@ -82,45 +84,76 @@ export default function GameScreen(p: GameScreenProps) {
     step(0);
   }, [sfx]);
 
-  /* Реакция на новое состояние от движка/сервера */
-  useEffect(() => {
-    const key = moveKey(game);
-    if (key === animatedKey.current) return;
-    animatedKey.current = key;
+  /* Реакция на новое состояние от движка/сервера.
+     События ставятся в очередь и проигрываются строго по одному — иначе две
+     анимации (например, свой ход и быстрый ответ соперника) наслаиваются. */
+  const queue = useRef<GameState[]>([]);
+  const running = useRef(false);
+  const lastKey = useRef('');
+  const lastMoveKey = useRef('');
 
+  const finishWith = useCallback((g: GameState, done: () => void) => {
+    setView(g);
+    setBusy(false);
+    if (g.phase === 'play') { sfx('turn'); setTurnKey(k => k + 1); }
+    else { sfx('fanfare'); if (g.phase === 'gameEnd') setConfetti(Array.from({ length: 50 }, (_, i) => ({ left: Math.round(Math.random() * 100), hex: COLORS[i % 7].hex, dur: (2.4 + Math.random() * 2).toFixed(2), delay: (Math.random() * 2.5).toFixed(2) }))); }
+    done();
+  }, [sfx]);
+
+  const showEliminated = useCallback((g: GameState, done: () => void) => {
+    const elim = g.eliminated;
+    const step = (j: number) => {
+      if (j >= elim.length) { finishWith(g, done); return; }
+      const q = g.players.find(x => x.id === elim[j]);
+      if (q) {
+        sfx('elim'); showToast(q.name + ' выбывает из раунда', 1500);
+        setView(v => ({ ...v, players: v.players.map(x => x.id === q.id ? { ...x, alive: false, pos: null } : x) }));
+      }
+      window.setTimeout(() => step(j + 1), q ? 1200 : 0);
+    };
+    step(0);
+  }, [finishWith, sfx, showToast]);
+
+  const play = useCallback((g: GameState, done: () => void) => {
     // Новый раунд (или первый показ)
-    if (!game.lastMove || game.round !== roundRef.current) {
-      roundRef.current = game.round;
+    if (!g.lastMove || g.round !== roundRef.current) {
+      roundRef.current = g.round; lastMoveKey.current = moveKey(g);
       localPrefix.current = []; setPending(null); setTeleMode(false);
-      setView(game); setBusy(true); setShake(true); setBanner('Раунд ' + game.round);
+      setView(g); setBusy(true); setShake(true); setBanner('Раунд ' + g.round);
       window.setTimeout(() => setShake(false), 900);
-      window.setTimeout(() => { setBanner(null); setBusy(false); setTurnKey(k => k + 1); sfx('turn'); }, 1300);
+      window.setTimeout(() => { setBanner(null); setBusy(false); setTurnKey(k => k + 1); sfx('turn'); done(); }, 1300);
       return;
     }
+    // Ход с анимацией
+    if (moveKey(g) !== lastMoveKey.current) {
+      lastMoveKey.current = moveKey(g);
+      const lm = g.lastMove;
+      const prefix = localPrefix.current;
+      const already = prefix.length && prefix.every((c, i) => lm.path[i] === c) ? prefix.length : 0;
+      localPrefix.current = []; setPending(null); setTeleMode(false); setBusy(true);
+      const mover = g.players.findIndex(q => q.id === lm.playerId);
+      animatePath(lm.path.slice(already), mover, already === 0, () => showEliminated(g, done));
+      return;
+    }
+    // Без хода: пропуск отсутствующего, выход игрока, пересинхронизация
+    setBusy(true); localPrefix.current = []; setPending(null); setTeleMode(false);
+    showEliminated(g, done);
+  }, [animatePath, showEliminated, sfx]);
 
-    // Ход: анимируем ещё не показанную часть пути
-    const lm = game.lastMove;
-    const prefix = localPrefix.current;
-    const already = prefix.length && prefix.every((c, i) => lm.path[i] === c) ? prefix.length : 0;
-    localPrefix.current = []; setPending(null); setTeleMode(false); setBusy(true);
-    const mover = view.players.findIndex(q => q.id === lm.playerId);
-    animatePath(lm.path.slice(already), mover, already === 0, () => {
-      const elim = game.eliminated;
-      const showElim = (j: number) => {
-        if (j < elim.length) {
-          const q = game.players.find(x => x.id === elim[j])!; sfx('elim');
-          showToast(q.name + ' заблокирован и выбывает', 1500);
-          setView(v => ({ ...v, players: v.players.map(x => x.id === q.id ? { ...x, alive: false, pos: null } : x) }));
-          window.setTimeout(() => showElim(j + 1), 1200); return;
-        }
-        setView(game);
-        setBusy(false);
-        if (game.phase === 'play') { sfx('turn'); setTurnKey(k => k + 1); }
-        else { sfx('fanfare'); if (game.phase === 'gameEnd') setConfetti(Array.from({ length: 50 }, (_, i) => ({ left: Math.round(Math.random() * 100), hex: COLORS[i % 7].hex, dur: (2.4 + Math.random() * 2).toFixed(2), delay: (Math.random() * 2.5).toFixed(2) }))); }
-      };
-      showElim(0);
-    });
-  }, [game]); // eslint-disable-line
+  const pump = useCallback(() => {
+    if (running.current) return;
+    const next = queue.current.shift(); if (!next) return;
+    running.current = true;
+    play(next, () => { running.current = false; pump(); });
+  }, [play]);
+
+  useEffect(() => {
+    const key = stateKey(game);
+    if (key === lastKey.current) return;
+    lastKey.current = key;
+    queue.current.push(game);
+    pump();
+  }, [game, pump]);
 
   const cur = view.players[view.turn];
   const myTurn = me === null || (cur && cur.id === me);

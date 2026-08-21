@@ -46,7 +46,8 @@ export default function Online({ code, sfx, onHome, headerRight, onVoice }: { co
   // Канал поднимаем после первого касания (иначе браузер не даст проиграть звук собеседников)
   const [touched, setTouched] = useState(false);
   useEffect(() => { const f = () => setTouched(true); const evs = ['pointerdown', 'touchstart', 'keydown']; evs.forEach(e => window.addEventListener(e, f, { once: true, passive: true })); return () => evs.forEach(e => window.removeEventListener(e, f)); }, []);
-  const voice = useVoice({ me, others: voiceOthers, enabled: !!room && conn === 'open' && touched, send, onRtc });
+  // enabled не зависит от состояния сокета: при кратком обрыве связи голос не должен пересоздаваться
+  const voice = useVoice({ me, others: voiceOthers, enabled: !!room && touched, send, onRtc });
   useEffect(() => { onVoice?.(voice.mic); }, [voice.mic]); // eslint-disable-line
   const mine = room?.members.find(m => m.id === me);
   const isHost = !!mine?.host;
@@ -151,7 +152,7 @@ export default function Online({ code, sfx, onHome, headerRight, onVoice }: { co
         <div style={{ fontWeight: 800, fontSize: 12, textTransform: 'uppercase', letterSpacing: '.08em', color: '#9a927e' }}>В комнате · {active.length} из 6</div>
         {active.map(m => <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ width: 22, height: 22, borderRadius: '50%', background: m.color !== null ? ballBg(m.color) : '#e8e2d3', border: m.color === null ? '2px dashed #cfc7b4' : 'none', flex: 'none' }} />
-          <div style={{ flex: 1, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', opacity: m.online ? 1 : .5 }}>{m.name}{m.id === me ? ' (вы)' : ''}</div>
+          <div style={{ flex: 1, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', opacity: m.online ? 1 : .45 }}>{m.name}{m.id === me ? ' (вы)' : ''}{!m.online && <span style={{ fontSize: 11, color: '#9a927e', marginLeft: 6 }}>не в сети</span>}</div>
           {m.voice && <div style={{ fontSize: 12 }}>🎙</div>}
           {m.host && <div style={{ fontSize: 11, fontWeight: 900, color: '#ef8b2d', textTransform: 'uppercase' }}>хозяин</div>}
           {m.color === null && <div style={{ fontSize: 12, fontWeight: 700, color: '#9a927e' }}>выбирает цвет</div>}

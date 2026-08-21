@@ -109,13 +109,13 @@ describe('PartyKit-адаптер', () => {
     expect(a.last().room.members.find(m => m.id === 'b')?.voice).toBe(true);
   });
 
-  it('в лобби ушедший освобождает место, хозяйство переходит', async () => {
+  it('в лобби отключившийся помечается офлайн, хозяйство переходит', async () => {
     const { client } = await boot();
     const a = await client('c1', 'a', 'Аня');
     const b = await client('c2', 'b', 'Боря');
     await a.close();
     const room = b.last().room;
-    expect(room.members.map(m => m.id)).toEqual(['b']);
-    expect(room.members[0].host).toBe(true);
+    expect(room.members.find(m => m.id === 'a')?.online).toBe(false);
+    expect(room.members.find(m => m.id === 'b')?.host).toBe(true);
   });
 });
