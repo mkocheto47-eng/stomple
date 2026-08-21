@@ -17,7 +17,11 @@ const ICE: RTCIceServer[] = [
   { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
 ];
 if (import.meta.env.VITE_TURN_URL) {
-  ICE.push({ urls: import.meta.env.VITE_TURN_URL, username: import.meta.env.VITE_TURN_USER, credential: import.meta.env.VITE_TURN_PASS });
+  // Свой TURN (Metered / Cloudflare Calls) — см. .env.example
+  ICE.push({ urls: import.meta.env.VITE_TURN_URL.split(',').map(u => u.trim()), username: import.meta.env.VITE_TURN_USER, credential: import.meta.env.VITE_TURN_PASS });
+} else {
+  // Запасной публичный ретранслятор Metered OpenRelay: без TURN телефоны на LTE друг друга не находят.
+  ICE.push({ urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443', 'turn:openrelay.metered.ca:443?transport=tcp', 'turns:openrelay.metered.ca:443?transport=tcp'], username: 'openrelayproject', credential: 'openrelayproject' });
 }
 
 export interface VoicePeer { id: string; speaking: boolean; connected: boolean }
