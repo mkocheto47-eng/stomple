@@ -12,7 +12,7 @@ export interface ReactionEvent { key: number; from: string; id: ReactionId }
 export interface Social {
   reactions: ReactionEvent[];
   onReact: (id: ReactionId) => void;
-  voice: { on: boolean; toggle: () => void; peers: Record<string, VoicePeer>; mySpeaking: boolean; error: string | null; members: Record<string, boolean> };
+  voice: { on: boolean; toggle: () => void; peers: Record<string, VoicePeer>; mySpeaking: boolean; error: string | null; members: Record<string, boolean>; debug?: () => string[] };
 }
 
 export interface GameScreenProps {
@@ -52,6 +52,9 @@ export default function GameScreen(p: GameScreenProps) {
   const [toast, setToast] = useState<string | null>(null);
   const [turnKey, setTurnKey] = useState(0);
   const [picker, setPicker] = useState(false);
+  const [diag, setDiag] = useState<string[] | null>(null);
+  const pressT = useRef<number>(0);
+  useEffect(() => { if (!diag) return; const t = setInterval(() => setDiag(p.social?.voice.debug?.() ?? null), 1000); return () => clearInterval(t); }, [diag, p.social]);
   const [confetti, setConfetti] = useState<{ left: number; hex: string; dur: string; delay: string }[]>([]);
   const toastT = useRef<number>(0);
   const animatedKey = useRef<string>('');
@@ -245,13 +248,19 @@ export default function GameScreen(p: GameScreenProps) {
       </div>}
 
       {p.social && <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <button onClick={p.social.voice.toggle} aria-pressed={p.social.voice.on} style={{ flex: 1, border: 'none', borderRadius: 14, padding: '11px 12px', fontSize: 13, fontWeight: 700, cursor: 'pointer', background: p.social.voice.on ? 'linear-gradient(180deg,#4f9d45,#3e8236)' : '#fff', color: p.social.voice.on ? '#fff' : '#55503f', boxShadow: p.social.voice.on ? '0 3px 0 #2d6127' : '0 3px 0 #e3ddcd, 0 2px 8px rgba(60,50,20,.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+        <button onClick={() => { if (pressT.current === -1) { pressT.current = 0; return; } p.social!.voice.toggle(); }}
+          onPointerDown={() => { pressT.current = window.setTimeout(() => { pressT.current = -1; setDiag(d => d ? null : (p.social?.voice.debug?.() ?? [])); }, 700); }}
+          onPointerUp={() => { if (pressT.current > 0) clearTimeout(pressT.current); }} onPointerLeave={() => { if (pressT.current > 0) clearTimeout(pressT.current); }}
+          aria-pressed={p.social.voice.on} style={{ flex: 1, border: 'none', borderRadius: 14, padding: '11px 12px', fontSize: 13, fontWeight: 700, cursor: 'pointer', background: p.social.voice.on ? 'linear-gradient(180deg,#4f9d45,#3e8236)' : '#fff', color: p.social.voice.on ? '#fff' : '#55503f', boxShadow: p.social.voice.on ? '0 3px 0 #2d6127' : '0 3px 0 #e3ddcd, 0 2px 8px rgba(60,50,20,.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
           <span style={{ fontSize: 16, animation: p.social.voice.on && p.social.voice.mySpeaking ? 'blink .6s infinite' : 'none' }}>{p.social.voice.on ? '🎙' : '🎤'}</span>
           {p.social.voice.on ? 'Микрофон включён' : 'Включить микрофон'}
           {Object.keys(p.social.voice.peers).length > 0 && <span style={{ fontSize: 11, opacity: .75, fontFamily: 'inherit' }}>· {Object.values(p.social.voice.peers).filter(x => x.connected).length}/{Object.keys(p.social.voice.peers).length} на связи</span>}
         </button>
         <button onClick={() => setPicker(x => !x)} aria-label="Реакции" style={{ border: 'none', borderRadius: 14, width: 46, height: 42, cursor: 'pointer', background: picker ? '#ffd84d' : '#fff', boxShadow: picker ? '0 3px 0 #cfa723' : '0 3px 0 #e3ddcd, 0 2px 8px rgba(60,50,20,.08)', fontSize: 20, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>😄</button>
         {p.onLeave && <button onClick={p.onLeave} aria-label="Выйти из игры" title="Выйти из игры" style={{ border: 'none', borderRadius: 14, width: 42, height: 42, cursor: 'pointer', background: '#fff', boxShadow: '0 3px 0 #e3ddcd, 0 2px 8px rgba(60,50,20,.08)', fontSize: 16, color: '#9a927e', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>⏏</button>}
+      </div>}
+      {p.social && diag && <div style={{ ...card, padding: 10, fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 11, lineHeight: 1.5, color: '#55503f', wordBreak: 'break-all' }}>
+        {diag.length ? diag.map((l, i) => <div key={i}>{l}</div>) : <div>нет соединений</div>}
       </div>}
       {p.social && picker && <div style={{ ...card, padding: 10, display: 'grid', gridTemplateColumns: 'repeat(9, 1fr)', gap: 4, animation: 'popIn .25s ease' }}>
         {REACTIONS.map(id => <button key={id} onClick={() => { p.social!.onReact(id); setPicker(false); sfx('tap'); }} aria-label={id} style={{ border: 'none', background: 'none', padding: 0, cursor: 'pointer', aspectRatio: '1' }}>

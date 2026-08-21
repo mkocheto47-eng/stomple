@@ -37,6 +37,7 @@ export function useVoice(opts: {
   const { me, send, enabled } = opts;
   const [mic, setMic] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasStream, setHasStream] = useState(false);
   const [peers, setPeers] = useState<Record<string, VoicePeer>>({});
   const [mySpeaking, setMySpeaking] = useState(false);
   const stream = useRef<MediaStream | null>(null);
@@ -208,38 +209,60 @@ export function useVoice(opts: {
     return () => clearInterval(t);
   }, [enabled, mic]);
 
-  const micOn = useCallback(async () => {
-    setError(null);
+  /**
+   * Микрофон захватываем один раз при входе в канал и держим ВЫКЛЮЧЕННЫМ (track.enabled = false).
+   * Причина: iOS Safari не воспроизводит входящий WebRTC-звук, пока приложение само не
+   * запросило микрофон. Кнопка — это mute/unmute, без пересогласований.
+   */
+  const acquire = useCallback(async (): Promise<MediaStreamTrack | null> => {
+    if (stream.current) return stream.current.getAudioTracks()[0] ?? null;
     try {
       const s = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false });
       stream.current = s;
       const track = s.getAudioTracks()[0];
-      // Система отобрала микрофон (звонок, другое приложение) — честно выключаемся.
-      track.onended = () => { if (stream.current === s) micOffRef.current(); };
+      track.enabled = false;
+      track.onended = () => { if (stream.current === s) { stream.current = null; setHasStream(false); micOffRef.current(); } };
       for (const sender of senders.current.values()) sender.replaceTrack(track).catch(() => {});
       attachAnalyser('__me', s);
-      setMic(true);
-      send({ t: 'voice', on: true });
+      setHasStream(true); setError(null);
+      return track;
     } catch (e: any) {
       setError(e?.name === 'NotAllowedError' ? 'Нет доступа к микрофону — разрешите его в настройках браузера' : 'Микрофон недоступен');
+      return null;
     }
-  }, [send]);
+  }, []);
+  useEffect(() => { if (enabled) acquire(); }, [enabled, acquire]);
+
+  const micOn = useCallback(async () => {
+    const track = await acquire(); if (!track) return;
+    track.enabled = true;
+    setMic(true);
+    send({ t: 'voice', on: true });
+  }, [send, acquire]);
 
   const micOffRef = useRef<() => void>(() => {});
   const micOff = useCallback(() => {
-    for (const sender of senders.current.values()) sender.replaceTrack(null).catch(() => {});
-    stream.current?.getTracks().forEach(t => t.stop()); stream.current = null;
-    detachAnalyser('__me');
+    const track = stream.current?.getAudioTracks()[0]; if (track) track.enabled = false;
     setMic(false); setMySpeaking(false);
     send({ t: 'voice', on: false });
   }, [send]);
   micOffRef.current = micOff;
 
+  const release = () => { stream.current?.getTracks().forEach(t => t.stop()); stream.current = null; detachAnalyser('__me'); setHasStream(false); };
   const leave = useCallback(() => {
     if (mic) micOff();
     for (const id of [...pcs.current.keys()]) closePeer(id);
-  }, [mic, micOff, closePeer]);
-  useEffect(() => () => { stream.current?.getTracks().forEach(t => t.stop()); for (const id of [...pcs.current.keys()]) closePeer(id); }, []); // eslint-disable-line
+    release();
+  }, [mic, micOff, closePeer]); // eslint-disable-line
+  useEffect(() => () => { release(); for (const id of [...pcs.current.keys()]) closePeer(id); }, []); // eslint-disable-line
+  useEffect(() => { if (!enabled) release(); }, [enabled]); // eslint-disable-line
 
-  return { mic, toggle: () => (mic ? micOff() : micOn()), leave, peers, mySpeaking, error };
+  /** Диагностика для скрытой панели. */
+  const debug = () => [...pcs.current.entries()].map(([id, pc]) => {
+    const a = audios.current.get(id);
+    const snd = senders.current.get(id);
+    return `${id.slice(0, 6)} · ${pc.connectionState}/${pc.iceConnectionState}/${pc.signalingState} · tx:${snd?.track ? (snd.track.enabled ? 'on' : 'muted') : 'none'} · rx:${a?.srcObject ? (a.paused ? 'paused' : 'playing') : 'none'}`;
+  }).concat([`mic:${hasStream ? (mic ? 'on' : 'muted') : 'no-stream'} · others:${opts.others.length} · enabled:${enabled}`]);
+
+  return { mic, toggle: () => (mic ? micOff() : micOn()), leave, peers, mySpeaking, error, debug };
 }

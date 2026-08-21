@@ -95,7 +95,7 @@ export default function Online({ code, sfx, onHome, headerRight, onVoice }: { co
         social={{
           reactions,
           onReact: (id: ReactionId) => send({ t: 'react', id }),
-          voice: { on: voice.mic, toggle: voice.toggle, peers: voice.peers, mySpeaking: voice.mySpeaking, error: voice.error, members: Object.fromEntries(room.members.map(m => [m.id, m.voice])) },
+          voice: { on: voice.mic, toggle: voice.toggle, peers: voice.peers, mySpeaking: voice.mySpeaking, error: voice.error, members: Object.fromEntries(room.members.map(m => [m.id, m.voice])), debug: voice.debug },
         }}
         onMove={(m: Move) => send({ t: 'move', move: m })}
         onNextRound={() => send({ t: 'nextRound' })}
@@ -169,7 +169,7 @@ export default function Online({ code, sfx, onHome, headerRight, onVoice }: { co
       </div>
 
       <button onClick={voice.toggle} style={{ ...btnSoft, background: voice.mic ? 'linear-gradient(180deg,#4f9d45,#3e8236)' : '#efe9da', color: voice.mic ? '#fff' : '#55503f' }}>{voice.mic ? '🎙 Микрофон включён — вас слышат' : '🎤 Включить микрофон'}</button>
-      <div style={{ textAlign: 'center', fontSize: 12, color: '#9a927e', fontWeight: 700, marginTop: -8 }}>Голосовой канал общий: всех, кто включил микрофон, слышно сразу</div>
+      <div style={{ textAlign: 'center', fontSize: 12, color: '#9a927e', fontWeight: 700, marginTop: -8 }}>Голосовой канал общий: всех, кто включил микрофон, слышно сразу. Доступ к микрофону запрашивается при входе — пока кнопка выключена, вас не слышно.</div>
       {isHost
         ? <button disabled={!canStart} onClick={() => send({ t: 'start' })} style={{ ...btnPrimary, ...(canStart ? {} : btnDisabled) }}>Начать игру</button>
         : <div style={{ textAlign: 'center', fontWeight: 700, color: '#9a927e', fontSize: 13 }}>Игру начнёт {room.members.find(m => m.host)?.name ?? 'хозяин'}</div>}
